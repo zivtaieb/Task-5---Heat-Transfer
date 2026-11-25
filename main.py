@@ -60,11 +60,7 @@ QDoubleSpinBox, QComboBox {
     font-weight: 600;
 }
 
-QDoubleSpinBox:read-only {
-    background-color: #1e293b;
-    color: #fde047;
-    border: 1px solid #475569;
-}
+
 
 QSlider::groove:vertical {
     background: #1e293b;
@@ -284,6 +280,7 @@ class GraphWindow(QWidget):
         main_layout.addWidget(plot_card, stretch=1)
         main_layout.addWidget(controls_card)
 
+
 class HeatTransfer(QWidget):
     def __init__(self):
         super().__init__()
@@ -291,19 +288,25 @@ class HeatTransfer(QWidget):
         self.resize(860, 560)
         self.setStyleSheet(APP_STYLESHEET)
 
-        # add other window variables here
+        
         self.graph_window = GraphWindow(self)
         self.about_window = AboutWindow()
 
-        # add other needed variables
+      
         self.time_history = []
         self.body1_temp_history = []
         self.body2_temp_history = []
 
-        # initialize the timer
+        
         self.timer = QTimer()
+        self.timer.timeout.connect(self.timer_method)
+        self.body1 = None
+        self.body2 = None
+        self.dt = 0.05
+        self.current_time = 0.0
 
         self.setupUI()
+        
 
     def _create_body_panel(self, title_text, default_temp, default_color):
         card = QFrame()
@@ -342,14 +345,13 @@ class HeatTransfer(QWidget):
         grid.setVerticalSpacing(8)
 
         temp_label = QLabel("Temp.")
-        temp_label.setObjectName("section_label")
-        temp_display = QDoubleSpinBox()
-        temp_display.setRange(0.0, 200.0)
-        temp_display.setDecimals(1)
-        temp_display.setValue(default_temp)
-        temp_display.setSuffix(" °C")
-        temp_display.setReadOnly(True)
-        temp_display.setButtonSymbols(QDoubleSpinBox.NoButtons)
+        temp_display = QLabel(f"{default_temp:.1f} °C")
+        temp_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        temp_display.setMinimumWidth(95)
+        temp_display.setStyleSheet(
+            "background-color: #0f131b; color: #f1f5f9; border: 1px solid #334155; "
+            "border-radius: 8px; padding: 6px 8px; font-weight: 600;"
+        )
 
         mass_label = QLabel("Mass")
         mass_label.setObjectName("section_label")
@@ -379,7 +381,7 @@ class HeatTransfer(QWidget):
         return card, slider, body_box, temp_display, mass_spin, cap_spin
 
 
-        self.setupUI()
+
 
     def setupUI(self):
         root_layout = QVBoxLayout(self)
@@ -457,6 +459,97 @@ class HeatTransfer(QWidget):
         stage_layout.addLayout(center_panel)
         stage_layout.addWidget(right_card, stretch=1)
         root_layout.addLayout(stage_layout)
+        self.left_slider.valueChanged.connect(self.left_temperature_changed)
+        self.right_slider.valueChanged.connect(self.right_temperature_changed)
+        self.start_button.clicked.connect(self.start_stop_button_method)
+        self.left_temperature_changed()
+        self.right_temperature_changed()
+
+
+    def _temperature_to_red_hex(self, temp):
+        clamped = max(0.0, min(200.0, float(temp)))
+        ratio = clamped / 200.0
+        red = int(30 + ratio * 225)
+        green = int(ratio * 68)
+        blue = int(ratio * 68)
+        return QColor(red, green, blue).name()
+
+    def _set_body_visuals(self, temp, slider, temp_spin, body_box):
+        slider.blockSignals(True)
+        slider.setValue(int(round(temp)))
+        slider.blockSignals(False)
+
+        temp_spin.setText(f"{temp:.1f} °C")
+        color_hex = self._temperature_to_red_hex(temp)
+        body_box.setStyleSheet(
+            f"background-color: {color_hex}; border-radius: 14px; border: 2px solid #f8fafc;"
+        )
+
+    def left_temperature_changed(self):
+        temp = float(self.left_slider.value())
+        self.left_temp_spin.setText(f"{temp:.1f} °C")
+        color_hex = self._temperature_to_red_hex(temp)
+        self.left_body_box.setStyleSheet(
+            f"background-color: {color_hex}; border-radius: 14px; border: 2px solid #f8fafc;"
+        )
+        print("text:", self.left_temp_spin.text)
+        #print(self.left_temp_spin.text())
+
+    def right_temperature_changed(self):
+        temp = float(self.right_slider.value())
+        self.right_temp_spin.setText(f"{temp:.1f} °C")
+        color_hex = self._temperature_to_red_hex(temp)
+        self.right_body_box.setStyleSheet(
+            f"background-color: {color_hex}; border-radius: 14px; border: 2px solid #f8fafc;"
+        )
+
+    def start_stop_button_method(self):
+        if self.start_button.isChecked():
+            self.start_button.setText("Stop")
+
+            t1 = float(self.left_slider.value())
+            m1 = self.left_mass_spin.value()
+            c1 = self.left_cap_spin.value()
+
+            t2 = float(self.right_slider.value())
+            m2 = self.right_mass_spin.value()
+            c2 = self.right_cap_spin.value()
+
+            self.body1 = Body(m1, c1, t1)
+            self.body2 = Body(m2, c2, t2)
+
+            self.dt = 0.05
+            self.current_time = 0.0
+            self.time_history = [self.current_time]
+            self.body1_temp_history = [self.body1.temperature]
+            self.body2_temp_history = [self.body2.temperature]
+
+            self.timer.start(50)
+        else:
+            self.timer.stop()
+            self.start_button.setText("Start")
+
+    def timer_method(self):
+        conductivity = self.conductivity_spin.value()
+        t1 = self.body1.temperature
+        t2 = self.body2.temperature
+
+        i1 = conductivity * (t2 - t1)
+        i2 = conductivity * (t1 - t2)
+
+        q1 = i1 * self.dt
+        q2 = i2 * self.dt
+
+        new_t1 = self.body1.add_heat(q1)
+        new_t2 = self.body2.add_heat(q2)
+
+        self.current_time += self.dt
+        self.time_history.append(self.current_time)
+        self.body1_temp_history.append(new_t1)
+        self.body2_temp_history.append(new_t2)
+
+        self._set_body_visuals(new_t1, self.left_slider, self.left_temp_spin, self.left_body_box)
+        self._set_body_visuals(new_t2, self.right_slider, self.right_temp_spin, self.right_body_box)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
