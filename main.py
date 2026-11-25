@@ -1,4 +1,5 @@
 import sys
+import csv
 from PySide6.QtCore import QTimer, Qt, QUrl
 from PySide6.QtGui import QColor, QPixmap, QDesktopServices
 from PySide6.QtWidgets import (
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QVBoxLayout,
     QWidget,
+    QFileDialog,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -279,6 +281,65 @@ class GraphWindow(QWidget):
 
         main_layout.addWidget(plot_card, stretch=1)
         main_layout.addWidget(controls_card)
+        self.draw_button.clicked.connect(self.draw_graph)
+        self.clear_button.clicked.connect(self.clear_graph)
+        self.export_button.clicked.connect(self.export_to_csv)
+    
+    def _style_axes(self):
+        self.ax.set_facecolor("#0f131b")
+        self.ax.set_title("Temperature vs. Time", color="#f8fafc", fontsize=12, fontweight="bold")
+        self.ax.set_xlabel("Time (s)", color="#cbd5e1")
+        self.ax.set_ylabel("Temperature (°C)", color="#cbd5e1")
+        self.ax.tick_params(colors="#cbd5e1")
+        for spine in self.ax.spines.values():
+            spine.set_color("#334155")
+        self.ax.grid(True, linestyle="--", alpha=0.25, color="#94a3b8")
+
+    def draw_graph(self):
+        t = self.main_window.time_history
+        t1 = self.main_window.body1_temp_history
+        t2 = self.main_window.body2_temp_history
+
+        self.ax.cla()
+        self._style_axes()
+
+        if not t:
+            self.canvas.draw()
+            return
+
+        selected = self.body_combo.currentText()
+        if selected in ("Body 1", "Both Bodies"):
+            self.ax.plot(t, t1, label="Body 1", color="#ef4444", linewidth=2)
+        if selected in ("Body 2", "Both Bodies"):
+            self.ax.plot(t, t2, label="Body 2", color="#38bdf8", linewidth=2)
+
+        self.ax.legend(facecolor="#1a202c", edgecolor="#334155", labelcolor="#f8fafc")
+        self.canvas.draw()
+
+    def clear_graph(self):
+        self.ax.cla()
+        self._style_axes()
+        self.canvas.draw()
+
+    def export_to_csv(self):
+        t = self.main_window.time_history
+        t1 = self.main_window.body1_temp_history
+        t2 = self.main_window.body2_temp_history
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Simulation Data",
+            "heat_conduction_data.csv",
+            "CSV Files (*.csv)",
+        )
+        if not file_path:
+            return
+
+        with open(file_path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Time (s)", "Body 1 Temp (°C)", "Body 2 Temp (°C)"])
+            for time_val, temp1_val, temp2_val in zip(t, t1, t2):
+                writer.writerow([f"{time_val:.2f}", f"{temp1_val:.2f}", f"{temp2_val:.2f}"])
 
 
 class HeatTransfer(QWidget):
