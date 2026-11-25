@@ -136,7 +136,7 @@ class AboutWindow(QWidget):
         self.author_name = "Ziv Taieb"
         self.author_email = "ziv.taieb@s.afeka.ac.il"
         self.linkedin_url = "www.linkedin.com/in/ziv-taieb-604192316"
-        self.github_url = ""
+        self.github_url = "https://github.com/zivtaieb/Task-5---Heat-Transfer"
 
         self.setupUI()
 
