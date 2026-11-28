@@ -171,12 +171,7 @@ class AboutWindow(QWidget):
                 pixmap.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
             self.image_label.setStyleSheet("border-radius: 12px;")
-        else:
-            self.image_label.setText("Add Image\n(profile.png)")
-            self.image_label.setStyleSheet(
-                "background-color: #0f172a; border: 2px dashed #475569; "
-                "border-radius: 12px; color: #94a3b8; font-weight: 600;"
-            )
+            
 
         image_row = QHBoxLayout()
         image_row.addStretch()
